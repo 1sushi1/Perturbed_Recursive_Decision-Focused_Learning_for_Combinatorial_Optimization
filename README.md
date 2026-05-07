@@ -51,7 +51,10 @@ python examples/run_discrete_benchmark.py --problem topk --models all --epochs 5
 python examples/run_discrete_benchmark.py --problem matching --models all --epochs 50
 ```
 
-This compares PTO, SPO+, S-DFL with perturbed optimizers, perturbed R-DFL-U/I, and relaxed continuous R-DFL-U/I.
+This compares PTO, SPO+, S-DFL with perturbed optimizers, perturbed R-DFL-U/I, and relaxed continuous R-DFL-U/I. By default, discrete experiments use `--data-mode recursive`, where hidden prices are generated as `c = f(v, x)` and the target decision is `x* = argmin_x c*^T x`.
+
+For recursive data generation, use `--fixed-point-mode fixed --fixed-point-steps T` to choose a fixed number of feedback iterations, or `--fixed-point-mode converged --convergence-tol 1e-4 --max-fixed-point-steps 100` to iterate until convergence.
+The initial decision state is sampled randomly before recursive feedback iterations begin.
 
 To plot discrete convergence curves:
 
@@ -75,7 +78,7 @@ python examples/run_benchmark.py --problem newsvendor --scale small --models all
 python examples/run_benchmark.py --problem matching --scale small --models all --repeats 5 --epochs 50
 ```
 
-The paper's matching benchmark uses a real-world dataset that is not distributed in the PDF, so this script defaults to `--data-mode one_way`: a synthetic `(features, costs)` dataset where the observed target costs do not depend on the model's generated decisions. To mimic Table 1 scales, use `--scale small`, `--scale mid`, or `--scale large`.
+The paper's matching benchmark uses a real-world dataset that is not distributed in the PDF, so this script defaults to `--data-mode recursive`: a synthetic recursive system where target costs are generated as `c = f(v, x*)` and `x* = G(c*)`. To mimic Table 1 scales, use `--scale small`, `--scale mid`, or `--scale large`.
 
 ## Plot Convergence Curves
 

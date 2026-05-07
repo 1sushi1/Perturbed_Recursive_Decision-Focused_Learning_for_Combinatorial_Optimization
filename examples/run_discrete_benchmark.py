@@ -63,6 +63,61 @@ def make_synthetic_costs(n_samples: int, feature_dim: int, decision_dim: int, se
     return TensorDataset(features, costs)
 
 
+def make_recursive_synthetic_costs(
+    n_samples: int,
+    feature_dim: int,
+    decision_dim: int,
+    oracle,
+    seed: int,
+    feedback_strength: float = 0.7,
+    fixed_point_steps: int = 20,
+    fixed_point_mode: str = "fixed",
+    convergence_tol: float = 1e-4,
+    max_fixed_point_steps: int = 100,
+) -> TensorDataset:
+    """Generate recursive discrete benchmark data.
+
+    Hidden pipeline:
+
+        c_t = f(v, x_t)
+        x_{t+1} = argmin_x c_t^T x
+
+    The returned target cost c* is the price at the final decision state, and
+    evaluation uses x* = argmin_x c*^T x as the ground-truth decision.
+    """
+
+    generator = torch.Generator().manual_seed(seed)
+    features = torch.randn(n_samples, feature_dim, generator=generator)
+    feature_weights = torch.randn(feature_dim, decision_dim, generator=generator) / feature_dim**0.5
+    feedback = torch.randn(decision_dim, decision_dim, generator=generator) / decision_dim**0.5
+    feedback = feedback_strength * feedback
+
+    def price_fn(v: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        base = v @ feature_weights
+        decision_effect = torch.tanh(x @ feedback)
+        return base + decision_effect
+
+    with torch.no_grad():
+        random_scores = torch.randn(n_samples, decision_dim, generator=generator)
+        x = oracle(random_scores)
+        total_steps = fixed_point_steps if fixed_point_mode == "fixed" else max_fixed_point_steps
+        for _ in range(total_steps):
+            costs = price_fn(features, x)
+            next_x = oracle(-costs)
+            if fixed_point_mode == "converged":
+                delta = (next_x - x).norm() / (1.0 + x.norm())
+                x = next_x
+                if delta <= convergence_tol:
+                    break
+            else:
+                x = next_x
+        costs = price_fn(features, x)
+        x_star = oracle(-costs)
+        costs = price_fn(features, x_star)
+        costs = costs + 0.05 * torch.randn(n_samples, decision_dim, generator=generator)
+    return TensorDataset(features, costs)
+
+
 def split_dataset(dataset: TensorDataset, seed: int):
     n = len(dataset)
     n_train = int(0.8 * n)
@@ -227,7 +282,21 @@ def run(args: argparse.Namespace) -> None:
         seed = args.seed + repeat
         torch.manual_seed(seed)
         spec = build_spec(args)
-        dataset = make_synthetic_costs(args.samples, spec.feature_dim, spec.decision_dim, seed)
+        if args.data_mode == "recursive":
+            dataset = make_recursive_synthetic_costs(
+                args.samples,
+                spec.feature_dim,
+                spec.decision_dim,
+                spec.oracle,
+                seed,
+                feedback_strength=args.feedback_strength,
+                fixed_point_steps=args.fixed_point_steps,
+                fixed_point_mode=args.fixed_point_mode,
+                convergence_tol=args.convergence_tol,
+                max_fixed_point_steps=args.max_fixed_point_steps,
+            )
+        else:
+            dataset = make_synthetic_costs(args.samples, spec.feature_dim, spec.decision_dim, seed)
         train_set, _, test_set = split_dataset(dataset, seed)
         train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
         test_loader = DataLoader(test_set, batch_size=args.batch_size)
@@ -267,6 +336,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--samples", type=int, default=512)
+    parser.add_argument("--data-mode", choices=["recursive", "one_way"], default="recursive")
+    parser.add_argument("--feedback-strength", type=float, default=0.7)
+    parser.add_argument("--fixed-point-steps", type=int, default=20)
+    parser.add_argument("--fixed-point-mode", choices=["fixed", "converged"], default="fixed")
+    parser.add_argument("--convergence-tol", type=float, default=1e-4)
+    parser.add_argument("--max-fixed-point-steps", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--decision-dim", type=int, default=20)
     parser.add_argument("--k", type=int, default=5)

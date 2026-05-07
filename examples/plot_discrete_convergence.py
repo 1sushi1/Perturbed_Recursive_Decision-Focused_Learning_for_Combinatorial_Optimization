@@ -17,6 +17,7 @@ from run_discrete_benchmark import (
     build_spec,
     discrete_regret,
     evaluate,
+    make_recursive_synthetic_costs,
     make_synthetic_costs,
     split_dataset,
     spo_plus_loss,
@@ -92,7 +93,21 @@ def run(args: argparse.Namespace) -> None:
 
     torch.manual_seed(args.seed)
     spec = build_spec(args)
-    dataset = make_synthetic_costs(args.samples, spec.feature_dim, spec.decision_dim, args.seed)
+    if args.data_mode == "recursive":
+        dataset = make_recursive_synthetic_costs(
+            args.samples,
+            spec.feature_dim,
+            spec.decision_dim,
+            spec.oracle,
+            args.seed,
+            feedback_strength=args.feedback_strength,
+            fixed_point_steps=args.fixed_point_steps,
+            fixed_point_mode=args.fixed_point_mode,
+            convergence_tol=args.convergence_tol,
+            max_fixed_point_steps=args.max_fixed_point_steps,
+        )
+    else:
+        dataset = make_synthetic_costs(args.samples, spec.feature_dim, spec.decision_dim, args.seed)
     train_set, _, test_set = split_dataset(dataset, args.seed)
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
     test_loader = DataLoader(test_set, batch_size=args.batch_size)
@@ -152,6 +167,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--samples", type=int, default=512)
+    parser.add_argument("--data-mode", choices=["recursive", "one_way"], default="recursive")
+    parser.add_argument("--feedback-strength", type=float, default=0.7)
+    parser.add_argument("--fixed-point-steps", type=int, default=20)
+    parser.add_argument("--fixed-point-mode", choices=["fixed", "converged"], default="fixed")
+    parser.add_argument("--convergence-tol", type=float, default=1e-4)
+    parser.add_argument("--max-fixed-point-steps", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--decision-dim", type=int, default=20)
     parser.add_argument("--k", type=int, default=5)

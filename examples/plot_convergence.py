@@ -88,6 +88,10 @@ def run(args: argparse.Namespace) -> None:
             spec.optimizer_layer,
             args.seed,
             feedback_strength=args.feedback_strength,
+            fixed_point_steps=args.fixed_point_steps,
+            fixed_point_mode=args.fixed_point_mode,
+            convergence_tol=args.convergence_tol,
+            max_fixed_point_steps=args.max_fixed_point_steps,
         )
     else:
         dataset = make_synthetic_data(args.samples, spec.feature_dim, spec.decision_dim, args.seed)
@@ -139,8 +143,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models", nargs="+", choices=["all", "pto", "sdfl", "rdfl-u", "rdfl-i"], default=["all"])
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--samples", type=int, default=512)
-    parser.add_argument("--data-mode", choices=["one_way", "recursive"], default="one_way")
+    parser.add_argument("--data-mode", choices=["recursive", "one_way"], default="recursive")
     parser.add_argument("--feedback-strength", type=float, default=0.7)
+    parser.add_argument("--fixed-point-steps", type=int, default=30)
+    parser.add_argument("--fixed-point-mode", choices=["fixed", "converged"], default="fixed")
+    parser.add_argument("--convergence-tol", type=float, default=1e-4)
+    parser.add_argument("--max-fixed-point-steps", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--steps", type=int, default=10)
     parser.add_argument("--backward-steps", type=int, default=30)

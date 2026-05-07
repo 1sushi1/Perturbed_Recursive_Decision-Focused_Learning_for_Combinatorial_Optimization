@@ -8,7 +8,7 @@ from torch import nn
 
 class RDFLUnrolled(nn.Module):
     """R-DFL-U: explicit K-step unrolling of x_i = G(F_theta(v, x_{i-1}))."""
-
+    
     def __init__(self, predictor: nn.Module, optimizer_layer: nn.Module, unroll_steps: int = 10) -> None:
         super().__init__()
         self.predictor = predictor
